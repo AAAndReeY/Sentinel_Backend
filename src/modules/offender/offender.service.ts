@@ -146,8 +146,8 @@ export class OffenderService {
       regime: personal.regimenLaboral.nombre,
       shift: personal.turno.nombre,
       subgerencia: personal.subgerencia.nombre,
-      jurisdiction_id: await this.jurisdictionService.getByGestionate(
-        personal.id_jurisdiccion,
+      jurisdiction_id: await this.jurisdictionService.getByName(
+        personal.jurisdiccion?.nombre,
       ),
       email: personal.correo,
     };

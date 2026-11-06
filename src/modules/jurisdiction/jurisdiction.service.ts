@@ -117,11 +117,25 @@ export class JurisdictionService {
     });
   }
 
-  async getByGestionate(id: number): Promise<any> {
-    const jurisdiction = await this.prisma.jurisdiction.findFirst({
-      select: { id: true },
-      where: { deleted_at: null, gestionate_id: id },
+  /**
+   * Busca la jurisdicción por nombre ignorando mayúsculas y tildes
+   * (Gestionate escribe "Mariscal Caceres" y Sentinel "Mariscal Cáceres").
+   */
+  async getByName(name?: string | null): Promise<string | null> {
+    if (!name) return null;
+    const target = this.normalize(name);
+    const jurisdictions = await this.prisma.jurisdiction.findMany({
+      select: { id: true, name: true },
+      where: { deleted_at: null },
     });
-    return jurisdiction?.id ?? null;
+    return jurisdictions.find((j) => this.normalize(j.name) === target)?.id ?? null;
+  }
+
+  private normalize(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toLowerCase();
   }
 }

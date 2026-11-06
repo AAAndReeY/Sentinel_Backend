@@ -199,7 +199,7 @@ model Offender {
   name                  String
   lastname              String
   dni                   String                @unique()
-  gestionate_id         Int
+  gestionate_id         String
   subgerencia           String
   job                   String
   regime                String
