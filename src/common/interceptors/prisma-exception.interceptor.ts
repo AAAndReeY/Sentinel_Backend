@@ -28,7 +28,9 @@ export class PrismaExceptionInterceptor implements NestInterceptor {
 
   private mapPrismaToHttp(error: any): HttpException | null {
     this.logger.error(error?.message);
-    if (error && typeof error.code === 'string') {
+    // Los códigos de Prisma son "P2002", "P2025"... otros errores (p. ej. Axios
+    // con "ERR_BAD_REQUEST") también traen `code` y no son errores de BD.
+    if (error && typeof error.code === 'string' && /^P\d{4}$/.test(error.code)) {
       const code = error.code as string;
       const target = error.meta?.target?.[0] as string | undefined;
       switch (code) {

@@ -1,6 +1,5 @@
 import {
   IsBoolean,
-  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -19,8 +18,9 @@ export class CreateOffenderDto {
   @Matches(/^[0-9]{8}$/)
   dni: string;
 
-  @IsInt()
-  gestionate_id: number;
+  @IsString()
+  @IsNotEmpty()
+  gestionate_id: string;
 
   @IsString()
   @IsNotEmpty()
