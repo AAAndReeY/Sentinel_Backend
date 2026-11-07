@@ -63,7 +63,14 @@ export class AttendanceService {
     const where: any = { date: { gte: date_start, lte: date_end } };
     if (dto.mode) where.mode = dto.mode;
     const offenders = await this.prisma.offender.findMany({
-      where: { attendance: true, deleted_at: null },
+      where: {
+        attendance: true,
+        // Una persona eliminada sigue apareciendo en los periodos donde ya tenia marcas
+        OR: [
+          { deleted_at: null },
+          { attendances: { some: { ...where, deleted_at: null } } },
+        ],
+      },
       include: {
         attendances: {
           where,
