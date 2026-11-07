@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { OffenderService } from './offender.service';
 import { UpdateOffenderDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { SearchDto } from '../../common/dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,7 +45,7 @@ export class OffenderController {
     return this.offenderService.findOne(id);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('offenders', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -54,7 +54,7 @@ export class OffenderController {
     return this.offenderService.update(id, dto);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('offenders', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string) {
     return this.offenderService.delete(id);

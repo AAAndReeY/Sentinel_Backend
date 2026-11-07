@@ -14,7 +14,7 @@ import {
 import { Request } from 'express';
 import { JurisdictionService } from './jurisdiction.service';
 import { CreateJurisdictionDto, UpdateJurisdictionDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { SearchDto } from '../../common/dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -22,7 +22,7 @@ import { SearchDto } from '../../common/dto';
 export class JurisdictionController {
   constructor(private readonly jurisdictionService: JurisdictionService) {}
 
-  @Roles('ADMINISTRATOR')
+  @Can('jurisdicciones', 'create')
   @Post()
   create(@Body() dto: CreateJurisdictionDto, @Req() req: Request) {
     return this.jurisdictionService.create(dto, req);
@@ -38,7 +38,7 @@ export class JurisdictionController {
     return this.jurisdictionService.findOne(id, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('jurisdicciones', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -48,7 +48,7 @@ export class JurisdictionController {
     return this.jurisdictionService.update(id, dto, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('jurisdicciones', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.jurisdictionService.toggleDelete(id, req);

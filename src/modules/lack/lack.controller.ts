@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { LackService } from './lack.service';
 import { CreateLackDto, UpdateLackDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { SearchDto } from '../../common/dto';
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -25,7 +25,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class LackController {
   constructor(private readonly lackService: LackService) {}
 
-  @Roles('ADMINISTRATOR')
+  @Can('faltas', 'create')
   @Post()
   create(@Body() dto: CreateLackDto, @Req() req: Request) {
     return this.lackService.create(dto, req);
@@ -41,7 +41,7 @@ export class LackController {
     return this.lackService.findOne(id, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('faltas', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -51,13 +51,13 @@ export class LackController {
     return this.lackService.update(id, dto, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('faltas', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.lackService.toggleDelete(id, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('faltas', 'create')
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   bulkUpload(@UploadedFile() file: Express.Multer.File, @Req() req: Request) {

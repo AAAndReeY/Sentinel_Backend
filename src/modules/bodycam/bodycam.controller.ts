@@ -17,7 +17,7 @@ import { Cam } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BodycamService } from './bodycam.service';
 import { CreateBodycamDto, FilterBodycamDto, UpdateBodycamDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -25,7 +25,7 @@ import { Request } from 'express';
 export class BodycamController {
   constructor(private readonly bodycamService: BodycamService) {}
 
-  @Roles('ADMINISTRATOR')
+  @Can('bodycam', 'create')
   @Post()
   create(@Body() dto: CreateBodycamDto, @Req() req: Request) {
     return this.bodycamService.create(dto, req);
@@ -41,7 +41,7 @@ export class BodycamController {
     return this.bodycamService.findOne(id, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('bodycam', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -51,13 +51,13 @@ export class BodycamController {
     return this.bodycamService.update(id, dto, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('bodycam', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.bodycamService.toggleDelete(id, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('bodycam', 'create')
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   bulkUpload(

@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { SubjectService } from './subject.service';
 import { CreateSubjectDto, UpdateSubjectDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { SearchDto } from '../../common/dto';
 import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -25,7 +25,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class SubjectController {
   constructor(private readonly subjectService: SubjectService) {}
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('asuntos', 'create')
   @Post()
   create(@Body() dto: CreateSubjectDto, @Req() req: Request) {
     return this.subjectService.create(dto, req);
@@ -41,7 +41,7 @@ export class SubjectController {
     return this.subjectService.findOne(id, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('asuntos', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -51,13 +51,13 @@ export class SubjectController {
     return this.subjectService.update(id, dto, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('asuntos', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.subjectService.toggleDelete(id, req);
   }
 
-  @Roles('ADMINISTRATOR')
+  @Can('asuntos', 'create')
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   bulkUpload(@UploadedFile() file: Express.Multer.File, @Req() req: Request) {

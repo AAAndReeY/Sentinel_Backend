@@ -45,6 +45,7 @@ enum Model {
   LEAD
   OFFENDER
   REPORT
+  ROLE
   SESSION
   SUBJECT
   USER
@@ -263,6 +264,20 @@ model Subject {
   deleted_at            DateTime?
 }
 
+/// Rol de acceso. `key` es el valor que guarda cada usuario en `User.rol`.
+/// Los roles del sistema (is_system) no se pueden eliminar; `permissions` es { modulo: [acciones] }.
+model Role {
+  id                    String                @id @default(uuid())
+  key                   String                @unique
+  name                  String
+  description           String?
+  is_system             Boolean               @default(false)
+  permissions           Json                  @default("{}")
+  created_at            DateTime              @default(now())
+  updated_at            DateTime              @updatedAt
+  deleted_at            DateTime?
+}
+
 model User {
   id                    String                @id @default(uuid())
   username              String                @unique
@@ -273,7 +288,7 @@ model User {
   dni                   String?               @unique
   phone                 String?               @unique
   max_ips               Int                   @default(1)
-  rol                   Rol
+  rol                   String
   audits                Audit[]
   reports               Report[]
   created_at            DateTime              @default(now())

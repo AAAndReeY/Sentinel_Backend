@@ -14,14 +14,14 @@ import {
 import { Request } from 'express';
 import { LeadService } from './lead.service';
 import { CreateLeadDto, FilterLeadDto, UpdateLeadDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('lead')
 export class LeadController {
   constructor(private readonly leadService: LeadService) {}
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('personal', 'create')
   @Post()
   create(@Body() dto: CreateLeadDto, @Req() req: Request) {
     return this.leadService.create(dto, req);
@@ -37,7 +37,7 @@ export class LeadController {
     return this.leadService.findOne(id, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('personal', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -47,7 +47,7 @@ export class LeadController {
     return this.leadService.update(id, dto, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('personal', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.leadService.toggleDelete(id, req);
