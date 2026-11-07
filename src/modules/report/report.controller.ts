@@ -19,7 +19,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ReportService } from './report.service';
 import { CreateReportDto, FilterReportDto, UpdateReportDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { SuccessMessage } from '../../common/decorators';
 import { imageFileFilter } from '../../common/filters';
 import { Request } from 'express';
@@ -29,7 +29,7 @@ import { Request } from 'express';
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR', 'SENTINEL')
+  @Can('incidencias', 'create')
   @Post()
   @SuccessMessage('Mensaje generado exitosamente')
   create(@Body() dto: CreateReportDto, @Req() req: Request) {
@@ -82,14 +82,14 @@ export class ReportController {
     return this.reportService.update(id, dto, files, descriptions, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR', 'SENTINEL')
+  @Can('incidencias', 'send')
   @Patch(':id/send')
   @SuccessMessage('Reporte enviado exitosamente')
   send(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.reportService.send(id, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR', 'VALIDATOR')
+  @Can('incidencias', 'validate')
   @Patch(':id/validate')
   @SuccessMessage('Reporte validado exitosamente')
   validate(
@@ -100,7 +100,7 @@ export class ReportController {
     return this.reportService.validate(id, dto.approved, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('incidencias', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.reportService.toggleDelete(id, req);

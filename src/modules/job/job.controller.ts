@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { JobService } from './job.service';
 import { CreateJobDto, UpdateJobDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { SearchDto } from '../../common/dto';
 import { Request } from 'express';
 
@@ -22,7 +22,7 @@ import { Request } from 'express';
 export class JobController {
   constructor(private readonly jobService: JobService) {}
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('cargos', 'create')
   @Post()
   create(@Body() dto: CreateJobDto, @Req() req: Request) {
     return this.jobService.create(dto, req);
@@ -38,7 +38,7 @@ export class JobController {
     return this.jobService.findOne(id, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('cargos', 'edit')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -48,7 +48,7 @@ export class JobController {
     return this.jobService.update(id, dto, req);
   }
 
-  @Roles('ADMINISTRATOR', 'SUPERVISOR')
+  @Can('cargos', 'delete')
   @Delete(':id')
   delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.jobService.toggleDelete(id, req);

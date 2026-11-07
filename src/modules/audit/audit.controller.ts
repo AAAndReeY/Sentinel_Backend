@@ -1,11 +1,11 @@
 import { Controller, Get, UseGuards, Req, Query } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { FilterAuditDto } from './dto';
-import { JwtAuthGuard, Roles, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
 import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMINISTRATOR')
+@Can('auditoria', 'view')
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
