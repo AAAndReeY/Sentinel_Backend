@@ -8,6 +8,7 @@ import { getIP } from '../common/helpers';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../modules/audit/audit.service';
 import { SessionService } from '../modules/session/session.service';
+import { RoleService } from '../modules/role/role.service';
 import { Request } from 'express';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private sessionService: SessionService,
+    private roleService: RoleService,
   ) {}
 
   async login(dto: LoginDto, req: Request) {
@@ -95,9 +97,28 @@ export class AuthService {
     return {
       user: username,
       rol: user.rol,
+      role_name: await this.roleService.getName(user.rol),
+      permissions: await this.roleService.permissionsOf(user.rol),
       token,
       nombre: user.name,
       apellido: user.lastname,
+    };
+  }
+
+  /** Datos de la sesión actual: el front los recarga al abrir la página para tener los permisos al día */
+  async me(req: any) {
+    const { user_id, rol } = req.user;
+    const user = await this.prisma.user.findUnique({
+      where: { id: user_id },
+      select: { username: true, name: true, lastname: true },
+    });
+    return {
+      user: user?.username,
+      rol,
+      role_name: await this.roleService.getName(rol),
+      permissions: await this.roleService.permissionsOf(rol),
+      nombre: user?.name,
+      apellido: user?.lastname,
     };
   }
 

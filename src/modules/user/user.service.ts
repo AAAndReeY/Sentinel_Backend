@@ -11,19 +11,23 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginationHelper, timezoneHelper } from '../../common/helpers';
 import { SessionService } from '../session/session.service';
+import { RoleService } from '../role/role.service';
 
 @Injectable()
 export class UserService {
   constructor(
     private readonly auditService: AuditService,
     private readonly sessionService: SessionService,
+    private readonly roleService: RoleService,
     private readonly prisma: PrismaService,
   ) {}
 
   async create(dto: CreateUserDto, req: any): Promise<User> {
     const { password, ...res } = dto;
-    if (req.user.rol === Rol.SUPERVISOR && res.rol !== Rol.SENTINEL)
+    // Solo el administrador puede asignar roles distintos de Centinela
+    if (req.user.rol !== Rol.ADMINISTRATOR && res.rol !== Rol.SENTINEL)
       throw new ForbiddenException('Creación no permitida');
+    await this.roleService.assertAssignable(res.rol);
     const user = await this.prisma.user.create({
       data: {
         ...res,
@@ -77,6 +81,11 @@ export class UserService {
   async update(id: string, dto: UpdateUserDto, req: any): Promise<User> {
     const { password, ...res } = dto;
     const user = await this.getUserById(id, req);
+    if (res.rol) {
+      if (req.user.rol !== Rol.ADMINISTRATOR && res.rol !== Rol.SENTINEL)
+        throw new ForbiddenException('Operación no permitida');
+      await this.roleService.assertAssignable(res.rol);
+    }
     const data = password
       ? {
           password: bcrypt.hashSync(password, 10),

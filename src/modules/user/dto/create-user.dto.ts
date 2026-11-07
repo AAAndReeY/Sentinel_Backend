@@ -1,7 +1,5 @@
-import { Rol } from '@prisma/client';
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -49,6 +47,8 @@ export class CreateUserDto {
   @IsOptional()
   phone?: string;
 
-  @IsEnum(Rol)
-  rol: Rol;
+  /** Clave de un rol existente (se valida en el servicio) */
+  @IsString()
+  @IsNotEmpty()
+  rol: string;
 }
