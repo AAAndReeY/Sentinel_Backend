@@ -16,6 +16,7 @@ import { LackModule } from './modules/lack/lack.module';
 import { LeadModule } from './modules/lead/lead.module';
 import { OffenderModule } from './modules/offender/offender.module';
 import { ReportModule } from './modules/report/report.module';
+import { RoleModule } from './modules/role/role.module';
 import { SessionModule } from './modules/session/session.module';
 import { SubjectModule } from './modules/subject/subject.module';
 import { UserModule } from './modules/user/user.module';
@@ -42,6 +43,7 @@ import { AllExceptionsFilter } from './common/filters';
     LeadModule,
     OffenderModule,
     ReportModule,
+    RoleModule,
     SessionModule,
     SubjectModule,
     UserModule,
