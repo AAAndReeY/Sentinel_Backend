@@ -6,14 +6,14 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Evidence } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { timezoneHelper } from './timezone.helper';
 
 export function generateFilename(originalName: string): string {
   const ext = path.extname(originalName);
-  return `${uuidv4()}${ext}`;
+  return `${randomUUID()}${ext}`;
 }
 
 export function generateDirectory(configService: ConfigService): any {
