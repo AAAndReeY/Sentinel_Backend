@@ -16,14 +16,19 @@ export class OffenderService {
   ) {}
 
   async create(dni: string, attendance?: boolean): Promise<any> {
-    const offender = await this.getOffenderByDni(dni);
+    const offender: Offender | null = await this.getOffenderByDni(dni);
     if (offender) {
-      if (attendance)
-        await this.prisma.offender.update({
-          data: { attendance },
-          where: { id: offender.id },
-        });
-      return offender;
+      // Si ya existe: registrarlo de nuevo lo marca para asistencia y, si estaba eliminado,
+      // lo restaura. Antes se devolvia eliminado y no aparecia en el calendario de inasistencias.
+      const data: { attendance?: boolean; deleted_at?: null; updated_at?: Date } = {};
+      if (attendance && !offender.attendance) data.attendance = true;
+      if (offender.deleted_at) data.deleted_at = null;
+      if (Object.keys(data).length === 0) return offender;
+      data.updated_at = timezoneHelper();
+      return await this.prisma.offender.update({
+        data,
+        where: { id: offender.id },
+      });
     }
     const dto = await this.verifyPersonal(dni);
     delete dto.email;

@@ -1,8 +1,10 @@
+import { Cam } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsObject,
@@ -21,6 +23,16 @@ class RecipientDto {
   @IsString()
   @IsNotEmpty()
   job: string;
+}
+
+class MediumDto {
+  @IsEnum(Cam, { message: 'Tipo de medio no valido' })
+  cam: Cam;
+
+  /** Dispositivo registrado (Bodycam.id); no se envia para celular */
+  @IsOptional()
+  @IsUUID()
+  bodycam_id?: string;
 }
 
 class HeaderDto {
@@ -70,6 +82,13 @@ export class CreateReportDto {
   @IsUUID()
   @IsOptional()
   bodycam_id?: string;
+
+  /** Uno o varios medios (bodycam, camara, radio, celular). bodycam_id queda como el principal. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediumDto)
+  media?: MediumDto[];
 
   @IsUUID()
   @IsNotEmpty()
