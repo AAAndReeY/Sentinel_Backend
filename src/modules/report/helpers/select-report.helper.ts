@@ -13,6 +13,7 @@ export function buildSelectReport(options?: {
     latitude: true,
     longitude: true,
     link: true,
+    media: true,
     message: true,
     process: true,
     shift: true,

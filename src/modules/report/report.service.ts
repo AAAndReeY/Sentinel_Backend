@@ -1,10 +1,15 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Action, Model, Process, Report, Rol } from '@prisma/client';
+import { Action, Cam, Model, Process, Report, Rol } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';
 import * as handlebars from 'handlebars';
 import * as ExcelJS from 'exceljs';
 import { CreateReportDto, FilterReportDto, UpdateReportDto } from './dto';
-import { buildSelectReport } from './helpers';
+import {
+  buildSelectReport,
+  describeMedia,
+  mediaLabel,
+  ReportMedium,
+} from './helpers';
 import { ReportGateway } from './report.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -39,8 +44,12 @@ export class ReportService {
 
   async create(dto: CreateReportDto, req: any) {
     const { user_id } = req.user;
-    const bodycam = dto.bodycam_id
-      ? await this.bodycamService.getBodycamById(dto.bodycam_id)
+    const media = await this.resolveMedia(dto.media, dto.bodycam_id);
+    // Dispositivo principal: el indicado o el primero de la lista (se mantiene para Excel y plantillas)
+    const bodycam_id =
+      dto.bodycam_id ?? media.find((m) => m.id)?.id ?? undefined;
+    const bodycam = bodycam_id
+      ? await this.bodycamService.getBodycamById(bodycam_id)
       : null;
     const lack = await this.lackService.getLackById(dto.lack_id);
     const subject = await this.subjectSubject.getSubjectById(dto.subject_id);
@@ -55,21 +64,32 @@ export class ReportService {
       : null;
     const { date: dates, time } = dateString(new Date(dto.date));
     const compile = handlebars.compile(lack.content);
+    // Con varios medios, {{bodycam.name}} de las plantillas existentes nombra a todos:
+    // "SG004, la CÁMARA 104A y un CELULAR". {{medios}} da la frase completa.
+    const others = media.filter((m) => !bodycam || m.id !== bodycam.id);
+    const bodycamForText =
+      bodycam && others.length
+        ? { ...bodycam, name: describeMediaAfter(bodycam.name, others) }
+        : bodycam;
     const message = compile({
-      bodycam,
+      ...dto,
+      bodycam: bodycamForText,
       bodycam_user,
+      media,
+      medios: describeMedia(media),
       lack,
       dates,
       offender,
       subject,
       time,
       user,
-      ...dto,
     });
-    const { header, bodycam_dni, offender_dni, ...res } = dto;
+    const { header, bodycam_dni, offender_dni, media: _media, ...res } = dto;
     const { id } = await this.prisma.report.create({
       data: {
         ...res,
+        bodycam_id,
+        media: media.length ? (media as any) : undefined,
         bodycam_user,
         header: instanceToPlain(header),
         message,
@@ -156,10 +176,14 @@ export class ReportService {
     if (dto.subject_id)
       await this.subjectSubject.getSubjectById(dto.subject_id);
     if (dto.lack_id) await this.lackService.getLackById(dto.lack_id);
-    const { header, bodycam_dni, offender_dni, ...res } = dto;
+    const media = dto.media
+      ? await this.resolveMedia(dto.media, dto.bodycam_id)
+      : null;
+    const { header, bodycam_dni, offender_dni, media: _media, ...res } = dto;
     await this.prisma.report.update({
       data: {
         ...res,
+        ...(media ? { media: media as any } : {}),
         updated_at: timezoneHelper(),
       },
       where: { id },
@@ -332,7 +356,9 @@ export class ReportService {
       const absence = r.absences?.[0] ?? null;
       const cc: string[] = ((r.header as any)?.cc || []).map((c: any) => c.name).filter(Boolean);
       const isAbsence = (r.absences?.length > 0) || (r.lack?.name === 'Inasistencia');
-      const tipoMedio = r.bodycam ? 'Bodycam' : 'Reporte';
+      const tipoMedio =
+        mediaLabel(r.media) ||
+        (r.bodycam ? 'Bodycam' : 'Reporte');
       const inasistenciaTipo = isAbsence
         ? (absence?.mode ? modeLabel(absence.mode) : (r.lack?.name || '-'))
         : '';
@@ -488,4 +514,41 @@ export class ReportService {
       throw new BadRequestException('Informe eliminado');
     return report;
   }
+
+  /**
+   * Valida los medios enviados y les agrega el nombre del dispositivo. Sin lista, usa bodycam_id.
+   * Quita repetidos; el celular no tiene dispositivo.
+   */
+  private async resolveMedia(
+    media: { cam: Cam; bodycam_id?: string }[] | undefined,
+    bodycamId?: string,
+  ): Promise<ReportMedium[]> {
+    const items = media?.length
+      ? media
+      : bodycamId
+        ? [{ cam: Cam.BODYCAM, bodycam_id: bodycamId }]
+        : [];
+    const result: ReportMedium[] = [];
+    for (const item of items) {
+      if (item.cam === Cam.PHONE && !item.bodycam_id) {
+        if (!result.some((m) => m.cam === Cam.PHONE))
+          result.push({ cam: Cam.PHONE, id: null, name: null });
+        continue;
+      }
+      if (!item.bodycam_id)
+        throw new BadRequestException(
+          'Selecciona el dispositivo de cada medio (bodycam, cámara o radio)',
+        );
+      if (result.some((m) => m.id === item.bodycam_id)) continue;
+      const device = await this.bodycamService.getBodycamById(item.bodycam_id);
+      result.push({ cam: device.cam, id: device.id, name: device.name });
+    }
+    return result;
+  }
+}
+
+/** "SG004" + otros medios -> "SG004, la CÁMARA 104A y un CELULAR" */
+function describeMediaAfter(firstName: string, others: ReportMedium[]): string {
+  const rest = describeMedia(others);
+  return others.length > 1 ? `${firstName}, ${rest}` : `${firstName} y ${rest}`;
 }

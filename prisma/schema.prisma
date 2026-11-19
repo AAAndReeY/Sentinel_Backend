@@ -231,6 +231,8 @@ model Report {
   shift                 Shift?
   bodycam               Bodycam?              @relation(fields: [bodycam_id], references: [id])
   bodycam_id            String?
+  /// Medios con que se registro el hecho: [{ cam, id, name }] (id/name null para celular)
+  media                 Json?
   jurisdiction          Jurisdiction?         @relation(fields: [jurisdiction_id], references: [id])
   jurisdiction_id       String?
   lack                  Lack                  @relation(fields: [lack_id], references: [id])
