@@ -1,5 +1,5 @@
 import { Cam } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -12,6 +12,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -49,6 +50,60 @@ class HeaderDto {
 }
 
 export class CreateReportDto {
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  reported_name?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  reported_lastname?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @Matches(/^[0-9]{8}$/)
+  reported_dni?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  reported_job?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(160)
+  reported_regime?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === '' ? null : value)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true })
+  service_start?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  assigned_zone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  assigned_sector?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  assigned_radio?: string;
+
   @IsString()
   @IsNotEmpty()
   address: string;

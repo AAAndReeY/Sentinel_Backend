@@ -32,6 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       select: {
         username: true,
         rol: true,
+        validator_department: true,
       },
       where: {
         id: sub,
@@ -42,6 +43,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       user_id: sub,
       rol: user.rol,
+      validator_department: user.validator_department,
       ip,
     };
   }

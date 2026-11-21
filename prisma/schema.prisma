@@ -216,6 +216,15 @@ model Offender {
 }
 
 model Report {
+  reported_name           String?
+  reported_lastname       String?
+  reported_dni            String?
+  reported_job            String?
+  reported_regime         String?
+  service_start         String?
+  assigned_zone         String?
+  assigned_sector       String?
+  assigned_radio        String?
   id                    String                @id @default(uuid())
   address               String?
   code                  String?               @unique()
@@ -291,6 +300,7 @@ model User {
   phone                 String?               @unique
   max_ips               Int                   @default(1)
   rol                   String
+  validator_department  String?
   audits                Audit[]
   reports               Report[]
   created_at            DateTime              @default(now())

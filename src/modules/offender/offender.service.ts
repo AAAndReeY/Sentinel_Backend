@@ -30,8 +30,7 @@ export class OffenderService {
         where: { id: offender.id },
       });
     }
-    const dto = await this.verifyPersonal(dni);
-    delete dto.email;
+    const { email, service_start, ...dto } = await this.verifyPersonal(dni);
     const newOffender = await this.prisma.offender.create({
       data: {
         ...dto,
@@ -143,6 +142,7 @@ export class OffenderService {
         'El personal con ese DNI no se encuentra en el Gestionate',
       );
     return {
+      service_start: typeof personal.f_inicio === 'string' ? personal.f_inicio.slice(0, 10) : null,
       gestionate_id: personal.id,
       name: personal.nombres,
       lastname: personal.apellidos,

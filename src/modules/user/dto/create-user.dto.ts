@@ -1,5 +1,6 @@
 import {
   IsEmail,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -8,7 +9,13 @@ import {
   MinLength,
 } from 'class-validator';
 
+import { validatorDepartments } from '../../report/helpers/validator-scope';
+
 export class CreateUserDto {
+  @IsOptional()
+  @IsIn(validatorDepartments)
+  validator_department?: string | null;
+
   @IsString()
   @IsNotEmpty()
   username: string;

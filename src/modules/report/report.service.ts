@@ -10,6 +10,8 @@ import {
   mediaLabel,
   ReportMedium,
 } from './helpers';
+import { validatorScope, ReportReader } from './helpers/validator-scope';
+import { nextReportCode } from './helpers/next-report-code';
 import { ReportGateway } from './report.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -21,7 +23,6 @@ import { SubjectService } from '../subject/subject.service';
 import { UserService } from '../user/user.service';
 import {
   dateString,
-  getCurrentYear,
   getShift,
   paginationHelper,
   timezoneHelper,
@@ -71,6 +72,13 @@ export class ReportService {
       bodycam && others.length
         ? { ...bodycam, name: describeMediaAfter(bodycam.name, others) }
         : bodycam;
+    const identification = {
+      reported_name: dto.reported_name ?? offender.name,
+      reported_lastname: dto.reported_lastname ?? offender.lastname,
+      reported_dni: dto.reported_dni ?? offender.dni,
+      reported_job: dto.reported_job ?? offender.job,
+      reported_regime: dto.reported_regime ?? offender.regime,
+    };
     const message = compile({
       ...dto,
       bodycam: bodycamForText,
@@ -79,7 +87,13 @@ export class ReportService {
       medios: describeMedia(media),
       lack,
       dates,
-      offender,
+      offender: { ...offender,
+        name: identification.reported_name,
+        lastname: identification.reported_lastname,
+        dni: identification.reported_dni,
+        job: identification.reported_job,
+        regime: identification.reported_regime,
+      },
       subject,
       time,
       user,
@@ -88,6 +102,7 @@ export class ReportService {
     const { id } = await this.prisma.report.create({
       data: {
         ...res,
+        ...identification,
         bodycam_id,
         media: media.length ? (media as any) : undefined,
         bodycam_user,
@@ -110,13 +125,10 @@ export class ReportService {
     const where: any = rol !== Rol.ADMINISTRATOR ? { deleted_at: null } : {};
     const orderBy: any = [{ created_at: 'desc' }];
     if (rol === 'VALIDATOR') {
-      where.process = { not: null };
+      where.AND = [validatorScope(req.user)];
       orderBy.unshift({ process: 'asc' });
     }
-    if (search) {
-      if (!where.offender) where.offender = {};
-      where.offender.dni = { contains: search, mode: 'insensitive' };
-    }
+    if (search) where.OR = this.searchIdentity(search);
     if (lack) where.lack_id = lack;
     if (jurisdiction) where.jurisdiction_id = jurisdiction;
     if (process) where.process = process;
@@ -141,7 +153,7 @@ export class ReportService {
 
   async findOne(id: string, req: any): Promise<Report> {
     const { rol } = req.user;
-    const report = await this.getReportById(id, { rol });
+    const report = await this.getReportById(id, req.user);
     await this.auditService.auditGetOne(Model.REPORT, id, req);
     return report;
   }
@@ -154,7 +166,7 @@ export class ReportService {
     req: any,
   ): Promise<Report> {
     const { rol } = req.user;
-    const report = await this.getReportById(id);
+    const report = await this.getReportById(id, req.user);
     if (rol === Rol.VALIDATOR && !report.process)
       throw new BadRequestException(
         'El informe aún no fue enviado, usted no puede actualizar',
@@ -192,12 +204,12 @@ export class ReportService {
     if (files.length)
       await this.evidenceService.create(files, descriptions, id);
     await this.auditService.auditUpdate(Model.REPORT, dto, report, req);
-    return await this.getReportById(id);
+    return await this.getReportById(id, req.user);
   }
 
   async toggleDelete(id: string, req: any): Promise<any> {
     const { rol } = req.user;
-    const report = await this.getReportById(id, { rol });
+    const report = await this.getReportById(id, req.user);
     const inactive = report.deleted_at;
     const deleted_at = inactive ? null : timezoneHelper();
     await this.prisma.report.update({
@@ -215,7 +227,7 @@ export class ReportService {
   }
 
   async send(id: string, req: any): Promise<any> {
-    const report = await this.getReportById(id);
+    const report = await this.getReportById(id, req.user);
     if (report.evidences.length === 0)
       throw new BadRequestException('El informe debe presentar evidencias');
     if (report.process)
@@ -234,36 +246,27 @@ export class ReportService {
   }
 
   async validate(id: string, approved: Boolean, req: any): Promise<any> {
-    const report = await this.getReportById(id);
+    const report = await this.getReportById(id, req.user);
     if (!report.process)
       throw new BadRequestException('El informe aún no se ha enviado');
     if (report.process !== Process.PENDING)
       throw new BadRequestException('El informe ya fue validado');
-    let code: string | null = null;
-    if (approved) {
-      const year = getCurrentYear().toString();
-      const codes = await this.prisma.report.findMany({
-        select: { code: true },
-        where: { code: { endsWith: year } },
-        orderBy: { code: 'desc' },
+    const updated = await this.prisma.$transaction(async tx => {
+      const code = approved ? await nextReportCode(tx, 4) : null;
+      const result = await tx.report.updateMany({
+        where: { id, process: Process.PENDING, deleted_at: null, AND: validatorScope(req.user) },
+        data: {
+          code,
+          process: approved ? Process.APPROVED : Process.REJECTED,
+          updated_at: timezoneHelper(),
+        },
       });
-      const lastCode = codes[0]?.code?.split('-')[0] ?? '0';
-      const codeNumber = Number(lastCode) + 1;
-      const format = codeNumber.toString().padStart(4, '0');
-      code = `${format}-${year}`;
-    }
-    const updated = await this.prisma.report.update({
-      data: {
-        code,
-        process: approved ? Process.APPROVED : Process.REJECTED,
-        updated_at: timezoneHelper(),
-      },
-      where: { id },
-      select: buildSelectReport({ relations: true }),
+      if (!result.count) throw new BadRequestException('El informe ya no está pendiente de validación');
+      return { id, code };
     });
     this.gateway.emitReportStatusValidate(updated);
     await this.auditService.auditValidate(id, approved, req);
-    return { id, state: approved, code };
+    return { id, state: approved, code: updated.code };
   }
 
   // FIXED: Deprecated
@@ -333,8 +336,8 @@ export class ReportService {
 
     // ── Filtros ───────────────────────────────────────────────────────────────
     const whereReports: any = { deleted_at: null };
-    if (rol === 'VALIDATOR') whereReports.process = { not: null };
-    if (search) whereReports.offender = { dni: { contains: search, mode: 'insensitive' } };
+    if (rol === 'VALIDATOR') whereReports.AND = [validatorScope(req.user)];
+    if (search) whereReports.OR = this.searchIdentity(search);
     if (lack) whereReports.lack_id = lack;
     if (jurisdiction) whereReports.jurisdiction_id = jurisdiction;
     if (process) whereReports.process = process;
@@ -367,11 +370,11 @@ export class ReportService {
         isAbsence,
         base: [
           r.code || '-',
-          r.offender?.dni || '',
-          r.offender ? `${r.offender.name} ${r.offender.lastname}`.trim() : '',
+          r.reported_dni ?? r.offender?.dni ?? '',
+          r.offender ? `${r.reported_name ?? r.offender.name} ${r.reported_lastname ?? r.offender.lastname}`.trim() : '',
           r.offender?.subgerencia || '',
-          r.offender?.job || '',
-          r.offender?.regime || '',
+          r.reported_job ?? r.offender?.job ?? '',
+          r.reported_regime ?? r.offender?.regime ?? '',
           r.subject?.name || '',
           r.lack?.name || '',
           shiftLabel(r.shift),
@@ -496,17 +499,27 @@ export class ReportService {
     return workbook.xlsx.writeBuffer() as unknown as Promise<Buffer>;
   }
 
+  private searchIdentity(search: string) {
+    const contains = { contains: search, mode: 'insensitive' as const };
+    return [
+      { code: contains },
+      ...['dni', 'name', 'lastname'].flatMap(field => [
+        { ['reported_' + field]: contains },
+        { ['reported_' + field]: null, offender: { [field]: contains } },
+      ]),
+    ];
+  }
+
   private async getReportById(
     id: string,
-    options?: {
-      rol?: Rol | null;
+    options?: ReportReader & {
       relation?: Boolean;
     },
   ): Promise<any> {
     const { rol = null, relation = true } = options || {};
     const select = relation ? { relations: true } : { ids: true };
     const report = await this.prisma.report.findUnique({
-      where: { id },
+      where: { id, AND: validatorScope(options || {}) },
       select: buildSelectReport(select),
     });
     if (!report) throw new BadRequestException('Informe no encontrado');
