@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
+import { ReportReader, validatorScope } from '../report/helpers/validator-scope';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -42,18 +44,26 @@ export class EvidenceService {
     });
   }
 
-  getFile(path: string[] | string): string {
+  async getFile(path: string[] | string, user: ReportReader): Promise<string> {
+    if (user.rol === 'VALIDATOR') {
+      const file = await this.prisma.evidence.findFirst({
+        where: { path: 'evidence/' + (Array.isArray(path) ? path.join('/') : path),
+          deleted_at: null, report: validatorScope(user) },
+        select: { id: true },
+      });
+      if (!file) throw new NotFoundException('Archivo no disponible');
+    }
     return getResolvedFilePath(this.config, path);
   }
 
-  async delete(id: string) {
+  async delete(id: string, user: ReportReader) {
     await this.getEvidenceById(id);
     await this.prisma.evidence.update({
       data: {
         updated_at: timezoneHelper(),
         deleted_at: timezoneHelper(),
       },
-      where: { id },
+      where: { id, report: validatorScope(user) },
     });
   }
 

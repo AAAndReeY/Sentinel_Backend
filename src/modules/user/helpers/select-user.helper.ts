@@ -8,6 +8,7 @@ export function buildSelectUser() {
     dni: true,
     phone: true,
     rol: true,
+    validator_department: true,
     deleted_at: true,
   };
 }

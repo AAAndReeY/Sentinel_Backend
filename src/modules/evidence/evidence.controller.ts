@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Res,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
@@ -17,13 +18,13 @@ export class EvidenceController {
   constructor(private readonly evidenceService: EvidenceService) {}
 
   @Get('*path')
-  getFile(@Param('path') path: string[] | string, @Res() res: Response) {
-    const filePath = this.evidenceService.getFile(path);
+  async getFile(@Param('path') path: string[] | string, @Req() req: any, @Res() res: Response) {
+    const filePath = await this.evidenceService.getFile(path, req.user);
     return res.sendFile(filePath);
   }
 
   @Delete(':id')
-  delete(@Param('id', ParseUUIDPipe) id: string) {
-    return this.evidenceService.delete(id);
+  delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    return this.evidenceService.delete(id, req.user);
   }
 }

@@ -9,10 +9,10 @@ export class ReportGateway {
   server: Server;
 
   emitReportStatusChanged(report: any) {
-    this.server.emit('report_status_changed', report);
+    this.server.emit('report_status_changed');
   }
 
   emitReportStatusValidate(report: any) {
-    this.server.emit('report_status_validate', report);
+    this.server.emit('report_status_validate');
   }
 }

@@ -28,6 +28,9 @@ export class UserService {
     if (req.user.rol !== Rol.ADMINISTRATOR && res.rol !== Rol.SENTINEL)
       throw new ForbiddenException('Creación no permitida');
     await this.roleService.assertAssignable(res.rol);
+    if (res.rol === Rol.VALIDATOR && !res.validator_department)
+      throw new BadRequestException('Seleccione la subgerencia del validador');
+    if (res.rol !== Rol.VALIDATOR) res.validator_department = null;
     const user = await this.prisma.user.create({
       data: {
         ...res,
@@ -86,6 +89,11 @@ export class UserService {
         throw new ForbiddenException('Operación no permitida');
       await this.roleService.assertAssignable(res.rol);
     }
+    if (res.validator_department !== undefined && req.user.rol !== Rol.ADMINISTRATOR)
+      throw new ForbiddenException('Solo un administrador puede asignar una subgerencia');
+    if ((res.rol ?? user.rol) !== Rol.VALIDATOR) res.validator_department = null;
+    else if (!(res.validator_department === undefined ? user.validator_department : res.validator_department))
+      throw new BadRequestException('Seleccione la subgerencia del validador');
     const data = password
       ? {
           password: bcrypt.hashSync(password, 10),
