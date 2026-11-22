@@ -54,7 +54,9 @@ export class ReportService {
       : null;
     const lack = await this.lackService.getLackById(dto.lack_id);
     const subject = await this.subjectSubject.getSubjectById(dto.subject_id);
-    const user = await this.userService.getUserById(user_id, req);
+    // Es el propio autor: sin `req` para no aplicar la restricción de gestión de
+    // usuarios (que solo deja a no-admins ver centinelas y bloqueaba al supervisor)
+    const user = await this.userService.getUserById(user_id);
     const offender = await this.offenderService.create(dto.offender_dni);
     const cameraman =
       dto.bodycam_dni && dto.bodycam_dni !== dto.offender_dni
