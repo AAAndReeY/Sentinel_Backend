@@ -222,6 +222,7 @@ model Report {
   reported_job            String?
   reported_regime         String?
   service_start         String?
+  omitted_assignment_fields String[] @default([])
   assigned_zone         String?
   assigned_sector       String?
   assigned_radio        String?
@@ -236,6 +237,8 @@ model Report {
   longitude             Float?
   link                  String?
   message               String?
+  destination_department String?
+  rejection_reason      String?
   process               Process?
   shift                 Shift?
   bodycam               Bodycam?              @relation(fields: [bodycam_id], references: [id])

@@ -53,6 +53,7 @@ const A = 'ADMINISTRATOR';
 const S = 'SUPERVISOR';
 const C = 'SENTINEL';
 const V = 'VALIDATOR';
+const T = 'TAREAJE';
 const G = 'SUBGERENTE';
 const ALL = [A, S, C, V, G];
 
@@ -70,7 +71,7 @@ const DEFAULT_RULES: Record<
     send: [A, S, C],
     validate: [A, V],
   },
-  inasistencias: { view: [A, S, C, V], create: [A, V] },
+  inasistencias: { view: [A, S, C, T], create: [A, T] },
   bodycam: { view: [A, S, C], create: [A], edit: [A], delete: [A] },
   estadisticas: { view: [A, S, G] },
   offenders: { view: [A, S], create: [A], edit: [A], delete: [A] },
@@ -109,6 +110,11 @@ export const SYSTEM_ROLES = [
     key: C,
     name: 'Centinela',
     description: 'Registra incidencias e inasistencias en campo.',
+  },
+  {
+    key: T,
+    name: 'Tareaje',
+    description: 'Registra las inasistencias del personal.',
   },
   {
     key: V,

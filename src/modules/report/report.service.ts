@@ -1,3 +1,4 @@
+import { unlink } from 'node:fs/promises';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Action, Cam, Model, Process, Report, Rol } from '@prisma/client';
 import { instanceToPlain } from 'class-transformer';
@@ -10,6 +11,8 @@ import {
   mediaLabel,
   ReportMedium,
 } from './helpers';
+import { approvedSignature } from './report-signature';
+import { ValidateReportDto } from './dto/validate-report.dto';
 import { validatorScope, ReportReader } from './helpers/validator-scope';
 import { nextReportCode } from './helpers/next-report-code';
 import { ReportGateway } from './report.gateway';
@@ -29,6 +32,19 @@ import {
   verifyUpdateFiles,
 } from '../../common/helpers';
 
+function firstReportLink(raw: string | null): string {
+  if (!raw) return '';
+  if (raw.startsWith('{')) {
+    try {
+      const data = JSON.parse(raw);
+      if (data?.format === 'centinela-report-v1') {
+        return (data.references?.trim().split('\n')[0] || data.images?.url || data.video?.url || '').trim();
+      }
+    } catch { /* Los informes anteriores guardaban texto libre. */ }
+  }
+  return raw.split('\n')[0].trim();
+}
+
 @Injectable()
 export class ReportService {
   constructor(
@@ -45,6 +61,7 @@ export class ReportService {
 
   async create(dto: CreateReportDto, req: any) {
     const { user_id } = req.user;
+    for (const key of dto.omitted_assignment_fields ?? []) delete dto[key];
     const media = await this.resolveMedia(dto.media, dto.bodycam_id);
     // Dispositivo principal: el indicado o el primero de la lista (se mantiene para Excel y plantillas)
     const bodycam_id =
@@ -121,6 +138,14 @@ export class ReportService {
     return { id, message };
   }
 
+  async pendingInbox(user: ReportReader) {
+    const pending = await this.prisma.report.findMany({
+      where: { AND: validatorScope(user), process: Process.PENDING },
+      select: { id: true },
+    });
+    return { department: user.validator_department ?? null, ids: pending.map(report => report.id) };
+  }
+
   async findAll(dto: FilterReportDto, req: any): Promise<any> {
     const { rol } = req.user;
     const { search, jurisdiction, lack, process, shift, subject, subgerencia, ...pagination } = dto;
@@ -128,7 +153,7 @@ export class ReportService {
     const orderBy: any = [{ created_at: 'desc' }];
     if (rol === 'VALIDATOR') {
       where.AND = [validatorScope(req.user)];
-      orderBy.unshift({ process: 'asc' });
+      orderBy.unshift({ process: 'asc' }, { updated_at: 'desc' });
     }
     if (search) where.OR = this.searchIdentity(search);
     if (lack) where.lack_id = lack;
@@ -157,7 +182,9 @@ export class ReportService {
     const { rol } = req.user;
     const report = await this.getReportById(id, req.user);
     await this.auditService.auditGetOne(Model.REPORT, id, req);
-    return report;
+    return report.process === Process.APPROVED && report.code
+      ? { ...report, signature: approvedSignature }
+      : report;
   }
 
   async update(
@@ -193,20 +220,41 @@ export class ReportService {
     const media = dto.media
       ? await this.resolveMedia(dto.media, dto.bodycam_id)
       : null;
-    const { header, bodycam_dni, offender_dni, media: _media, ...res } = dto;
-    await this.prisma.report.update({
-      data: {
-        ...res,
-        ...(media ? { media: media as any } : {}),
-        updated_at: timezoneHelper(),
-      },
-      where: { id },
-    });
-    verifyUpdateFiles(files, descriptions, report.evidences);
-    if (files.length)
-      await this.evidenceService.create(files, descriptions, id);
+    const { header, bodycam_dni, offender_dni, media: _media, captions: edits, ...res } = dto;
+    const captions = typeof descriptions === 'string' ? [descriptions] : descriptions;
+    verifyUpdateFiles(files, captions);
+    let captionEdits: Record<string, string> = {};
+    if (edits) {
+      try { captionEdits = JSON.parse(edits); } catch { throw new BadRequestException('Descripciones inválidas'); }
+      if (!captionEdits || typeof captionEdits !== 'object' || Array.isArray(captionEdits) ||
+          Object.values(captionEdits).some(value => typeof value !== 'string' || !value.trim()))
+        throw new BadRequestException('Descripciones inválidas');
+    }
+    const clearedAssignments = Object.fromEntries(
+      (dto.omitted_assignment_fields ?? report.omitted_assignment_fields ?? []).map(key => [key, null]),
+    );
+    const written: string[] = [];
+    let uploadedEvidenceIds: string[];
+    try {
+      uploadedEvidenceIds = await this.prisma.$transaction(async tx => {
+        await tx.report.update({
+          data: { ...res, ...clearedAssignments, ...(media ? { media: media as any } : {}), updated_at: timezoneHelper() },
+          where: { id },
+        });
+        for (const [evidenceId, caption] of Object.entries(captionEdits)) {
+          const result = await tx.evidence.updateMany({
+            where: { id: evidenceId, report_id: id, deleted_at: null }, data: { description: caption.trim() },
+          });
+          if (!result.count) throw new BadRequestException('El anexo ya no está disponible');
+        }
+        return files.length ? this.evidenceService.attach(tx, files, captions, id, written) : [];
+      });
+    } catch (error) {
+      await Promise.allSettled(written.map(file => unlink(file)));
+      throw error;
+    }
     await this.auditService.auditUpdate(Model.REPORT, dto, report, req);
-    return await this.getReportById(id, req.user);
+    return { ...await this.getReportById(id, req.user), uploadedEvidenceIds };
   }
 
   async toggleDelete(id: string, req: any): Promise<any> {
@@ -228,26 +276,27 @@ export class ReportService {
     };
   }
 
-  async send(id: string, req: any): Promise<any> {
+  async send(id: string, department: string, req: any): Promise<any> {
     const report = await this.getReportById(id, req.user);
-    if (report.evidences.length === 0)
-      throw new BadRequestException('El informe debe presentar evidencias');
-    if (report.process)
-      throw new BadRequestException('El informe ya ha sido enviado');
-    const updated = await this.prisma.report.update({
-      data: {
-        process: Process.PENDING,
-        updated_at: timezoneHelper(),
-      },
-      where: { id },
-      select: buildSelectReport({ relations: true }),
+    if (report.process) throw new BadRequestException('El informe ya ha sido enviado');
+    const result = await this.prisma.report.updateMany({
+      where: { id, deleted_at: null, process: null, evidences: {
+        some: { deleted_at: null, mimetype: { startsWith: 'image/' } },
+      } },
+      data: { process: Process.PENDING, destination_department: department, updated_at: timezoneHelper() },
     });
-    this.gateway.emitReportStatusChanged(updated);
+    if (!result.count)
+      throw new BadRequestException('Solo se puede enviar un borrador activo con al menos una imagen adjunta');
+    this.gateway.emitReportStatusChanged({ id });
     await this.auditService.auditSend(id, req);
     return { id };
   }
 
-  async validate(id: string, approved: Boolean, req: any): Promise<any> {
+  async validate(id: string, dto: ValidateReportDto, req: any): Promise<any> {
+    const { approved } = dto;
+    const reason = approved ? null : dto.rejection_reason?.trim();
+    if (!approved && !reason)
+      throw new BadRequestException('Escribe la observación del rechazo');
     const report = await this.getReportById(id, req.user);
     if (!report.process)
       throw new BadRequestException('El informe aún no se ha enviado');
@@ -259,6 +308,7 @@ export class ReportService {
         where: { id, process: Process.PENDING, deleted_at: null, AND: validatorScope(req.user) },
         data: {
           code,
+          rejection_reason: reason,
           process: approved ? Process.APPROVED : Process.REJECTED,
           updated_at: timezoneHelper(),
         },
@@ -392,7 +442,7 @@ export class ReportService {
           cc.length ? cc.join(', ') : '-',
           processLabel(r.process),
           r.evidences?.length ?? 0,
-          r.link ? r.link.split('\n')[0].trim() : '',
+          firstReportLink(r.link),
         ],
         absence: [
           inasistenciaTipo,

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { NotFoundException } from '@nestjs/common';
 import { ReportReader, validatorScope } from '../report/helpers/validator-scope';
@@ -19,29 +20,39 @@ export class EvidenceService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async create(
-    files: Express.Multer.File[],
-    descriptions: string[] | string,
-    report_id: string,
-  ): Promise<any> {
+  // La actualización del informe serializa las cargas concurrentes del mismo borrador.
+  async attach(tx: Prisma.TransactionClient, files: Express.Multer.File[], descriptions: string[],
+    reportId: string, written: string[]): Promise<string[]> {
+    const existing = await tx.evidence.findMany({ where: { report_id: reportId, deleted_at: null } });
+    const ids: string[] = [];
+    const base = this.config.getOrThrow<string>('FILES_PATH');
     const { currentDate, uploadDir, date } = generateDirectory(this.config);
-    const dataToCreate = files.map((file, i) => {
-      const uniqueName = generateFilename(file.originalname);
-      const filePath = path.join(uploadDir, uniqueName);
-      fs.writeFileSync(filePath, file.buffer);
-      return {
-        description: descriptions[i],
-        path: `evidence/${currentDate}/${uniqueName}`,
-        mimetype: file.mimetype,
-        size: file.size,
-        report_id,
-        created_at: date,
-        updated_at: date,
-      };
-    });
-    return await this.prisma.evidence.createMany({
-      data: dataToCreate,
-    });
+    for (const [i, file] of files.entries()) {
+      const description = descriptions[i].trim();
+      let found: string | undefined;
+      for (const entry of existing) {
+        if (entry.size !== file.size || entry.description.trim() !== description) continue;
+        try {
+          const stored = await fs.promises.readFile(path.join(base, entry.path));
+          if (stored.equals(file.buffer)) { found = entry.id; break; }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+      }
+      if (found) { ids.push(found); continue; }
+      if (existing.length >= 5) throw new BadRequestException('Solo puedes subir 5 archivos como máximo');
+      const name = generateFilename(file.originalname);
+      const dest = path.join(uploadDir, name);
+      await fs.promises.writeFile(dest, file.buffer);
+      written.push(dest);
+      const entry = await tx.evidence.create({ data: {
+        report_id: reportId, description, path: `evidence/${currentDate}/${name}`,
+        mimetype: file.mimetype, size: file.size, created_at: date, updated_at: date,
+      } });
+      existing.push(entry);
+      ids.push(entry.id);
+    }
+    return ids;
   }
 
   async getFile(path: string[] | string, user: ReportReader): Promise<string> {

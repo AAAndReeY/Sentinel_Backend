@@ -17,9 +17,11 @@ import {
 import { Response } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { SendReportDto } from './dto/send-report.dto';
+import { ValidateReportDto } from './dto/validate-report.dto';
 import { ReportService } from './report.service';
 import { CreateReportDto, FilterReportDto, UpdateReportDto } from './dto';
-import { JwtAuthGuard, Can, RolesGuard } from '../../auth/guard';
+import { JwtAuthGuard, Can, Roles, RolesGuard } from '../../auth/guard';
 import { SuccessMessage } from '../../common/decorators';
 import { imageFileFilter } from '../../common/filters';
 import { Request } from 'express';
@@ -36,6 +38,7 @@ export class ReportController {
     return this.reportService.create(dto, req);
   }
 
+  @Can('incidencias', 'view')
   @Get('export')
   async exportExcel(@Query() dto: FilterReportDto, @Req() req: Request, @Res() res: Response) {
     const buffer = await this.reportService.exportExcel(dto, req);
@@ -48,6 +51,7 @@ export class ReportController {
     res.end(buffer);
   }
 
+  @Can('incidencias', 'view')
   @Get()
   findAll(@Query() dto: FilterReportDto, @Req() req: Request) {
     return this.reportService.findAll(dto, req);
@@ -58,11 +62,20 @@ export class ReportController {
     return this.reportService.getByRange(dto, req);
   } */
 
+  @Roles('VALIDATOR')
+  @Can('incidencias', 'view')
+  @Get('pending-inbox')
+  pendingInbox(@Req() req: Request) {
+    return this.reportService.pendingInbox(req.user!);
+  }
+
+  @Can('incidencias', 'view')
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
     return this.reportService.findOne(id, req);
   }
 
+  @Can('incidencias', 'view')
   @Patch(':id')
   @UseInterceptors(
     FilesInterceptor('files', 5, {
@@ -85,8 +98,8 @@ export class ReportController {
   @Can('incidencias', 'send')
   @Patch(':id/send')
   @SuccessMessage('Reporte enviado exitosamente')
-  send(@Param('id', ParseUUIDPipe) id: string, @Req() req: Request) {
-    return this.reportService.send(id, req);
+  send(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SendReportDto, @Req() req: Request) {
+    return this.reportService.send(id, dto.destination_department, req);
   }
 
   @Can('incidencias', 'validate')
@@ -94,10 +107,10 @@ export class ReportController {
   @SuccessMessage('Reporte validado exitosamente')
   validate(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: { approved: boolean },
+    @Body() dto: ValidateReportDto,
     @Req() req: Request,
   ) {
-    return this.reportService.validate(id, dto.approved, req);
+    return this.reportService.validate(id, dto, req);
   }
 
   @Can('incidencias', 'delete')

@@ -3,6 +3,8 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsIn,
+  ArrayUnique,
   IsDateString,
   IsEnum,
   IsNotEmpty,
@@ -49,7 +51,16 @@ class HeaderDto {
   cc: RecipientDto[];
 }
 
+const optionalAssignmentFields = ['assigned_zone', 'assigned_sector', 'assigned_radio'] as const;
+
 export class CreateReportDto {
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? (value ? value.split(',') : []) : value)
+  @IsArray()
+  @ArrayUnique()
+  @IsIn([...optionalAssignmentFields], { each: true })
+  omitted_assignment_fields?: (typeof optionalAssignmentFields)[number][];
+
   @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()

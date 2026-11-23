@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { CreateAbsenceDto } from './dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { instanceToPlain } from 'class-transformer';
 import { timezoneHelper } from '../../common/helpers';
+import { approvedSignature } from '../report/report-signature';
 import { nextReportCode } from '../report/helpers/next-report-code';
 import { Absence, Process } from '@prisma/client';
 
@@ -11,7 +12,9 @@ export class AbsenceService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateAbsenceDto, req: any): Promise<Absence> {
-    const { user_id } = req.user;
+    const { user_id, rol } = req.user;
+    if (rol === 'TAREAJE')
+      throw new ForbiddenException('Tareaje solo puede registrar inasistencias');
     const { header, lack_id, subject_id, ...res } = dto;
     return this.prisma.$transaction(async tx => {
       const code = await nextReportCode(tx, 3);
@@ -30,7 +33,7 @@ export class AbsenceService {
       });
       const start = `${res.start}T08:00:00.000Z`;
       const end = `${res.end}T08:00:00.000Z`;
-      return await tx.absence.create({
+      const absence = await tx.absence.create({
         data: {
           start,
           end,
@@ -40,6 +43,7 @@ export class AbsenceService {
           updated_at: timezoneHelper(),
         },
       });
+      return { ...absence, code, signature: approvedSignature };
     });
   }
 }

@@ -9,5 +9,9 @@ export class UpdateReportDto extends PartialType(CreateReportDto) {
 
   @IsOptional()
   @IsString()
+  captions?: string;
+
+  @IsOptional()
+  @IsString()
   message?: string;
 }
