@@ -16,11 +16,17 @@ export interface ReportReader {
 export function validatorScope(user: ReportReader): Prisma.ReportWhereInput {
   if (user.rol !== Rol.VALIDATOR) return {};
   const key = user.validator_department;
-  const names = key && Object.prototype.hasOwnProperty.call(departments, key)
-    ? departments[key as keyof typeof departments] : [];
+  if (!key || !validatorDepartments.includes(key)) return { id: { in: [] } };
+  const names = departments[key as keyof typeof departments];
   return {
     deleted_at: null,
     process: { not: null },
-    offender: { subgerencia: { in: names.flatMap(name => [name, 'Subgerencia de ' + name]), mode: 'insensitive' } },
+    OR: [
+      { destination_department: key },
+      // Los informes enviados antes de incorporar la selección conservan su bandeja.
+      { destination_department: null, offender: { subgerencia: {
+        in: names.flatMap(name => [name, 'Subgerencia de ' + name]), mode: 'insensitive',
+      } } },
+    ],
   };
 }

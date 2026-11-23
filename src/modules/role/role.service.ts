@@ -37,11 +37,22 @@ export class RoleService implements OnModuleInit {
 
   /** Crea los roles del sistema que falten. Nunca pisa los permisos que ya se editaron. */
   async onModuleInit() {
+    await this.prisma.$executeRaw`
+      UPDATE "Role" SET permissions = permissions - 'inasistencias', updated_at = NOW()
+      WHERE key = 'VALIDATOR' AND jsonb_exists(permissions, 'inasistencias')`;
     for (const role of SYSTEM_ROLES) {
       const exists = await this.prisma.role.findUnique({
         where: { key: role.key },
       });
-      if (exists) continue;
+      if (exists) {
+        if (role.key === 'TAREAJE' && exists.description === 'Registra inasistencias y genera sus informes.') {
+          await this.prisma.role.updateMany({
+            where: { id: exists.id, description: exists.description },
+            data: { description: role.description },
+          });
+        }
+        continue;
+      }
       await this.prisma.role.create({
         data: {
           ...role,
@@ -115,6 +126,8 @@ export class RoleService implements OnModuleInit {
       throw new BadRequestException(
         'El Administrador siempre tiene todos los permisos',
       );
+    if (role.key === 'VALIDATOR' && dto.permissions?.inasistencias?.length)
+      throw new BadRequestException('Las inasistencias se gestionan con el rol Tareaje');
     const data: any = { updated_at: timezoneHelper() };
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.description !== undefined)

@@ -11,6 +11,7 @@ export function buildSelectReport(options?: {
     reported_job: true,
     reported_regime: true,
     service_start: true,
+    omitted_assignment_fields: true,
     assigned_zone: true,
     assigned_sector: true,
     assigned_radio: true,
@@ -24,6 +25,8 @@ export function buildSelectReport(options?: {
     link: true,
     media: true,
     message: true,
+    destination_department: true,
+    rejection_reason: true,
     process: true,
     shift: true,
     evidences: {

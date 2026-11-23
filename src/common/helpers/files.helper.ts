@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Evidence } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -42,11 +41,9 @@ export function getResolvedFilePath(
 export function verifyUpdateFiles(
   files: Array<Express.Multer.File>,
   descriptions: string[] | string,
-  evidences: Evidence[],
 ): void {
   if (!files || files.length === 0) return;
-  const total = evidences.length + files.length;
-  if (total > 5)
+  if (files.length > 5)
     throw new ForbiddenException('Solo puedes subir 5 archivos como máximo');
   if (!Array.isArray(descriptions))
     throw new BadRequestException('El campo descriptions ser un arreglo');
