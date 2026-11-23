@@ -156,7 +156,7 @@ export class ReportService {
     if (search) where.OR = this.searchIdentity(search);
     if (lack) where.lack_id = lack;
     if (jurisdiction) where.jurisdiction_id = jurisdiction;
-    if (process) where.process = process;
+    if (process !== undefined) where.process = process;
     if (shift) where.shift = shift;
     if (subject) where.subject_id = subject;
     if (subgerencia) {
@@ -245,13 +245,14 @@ export class ReportService {
           });
           if (!result.count) throw new BadRequestException('El anexo ya no está disponible');
         }
-        return files.length ? this.evidenceService.attach(tx, files, captions, id, written) : [];
+        const ids = files.length ? await this.evidenceService.attach(tx, files, captions, id, written) : [];
+        await this.auditService.auditUpdate(Model.REPORT, dto, report, req, tx);
+        return ids;
       });
     } catch (error) {
       await Promise.allSettled(written.map(file => unlink(file)));
       throw error;
     }
-    await this.auditService.auditUpdate(Model.REPORT, dto, report, req);
     return { ...await this.getReportById(id, req.user), uploadedEvidenceIds };
   }
 
@@ -390,7 +391,7 @@ export class ReportService {
     if (search) whereReports.OR = this.searchIdentity(search);
     if (lack) whereReports.lack_id = lack;
     if (jurisdiction) whereReports.jurisdiction_id = jurisdiction;
-    if (process) whereReports.process = process;
+    if (process !== undefined) whereReports.process = process;
     if (shift) whereReports.shift = shift;
     if (subject) whereReports.subject_id = subject;
     if (subgerencia) {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Action, Audit, Model, Status } from '@prisma/client';
+import { Action, Audit, Model, Prisma, Status } from '@prisma/client';
 import { CreateAuditDto, FilterAuditDto } from './dto';
 import { buildAuditSelect } from './helpers';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -66,20 +66,24 @@ export class AuditService {
     dto: any,
     register: any,
     req: any,
+    db: Pick<Prisma.TransactionClient, 'audit'> = this.prisma,
   ): Promise<void> {
-    for (const key in dto)
-      await this.create(
-        {
-          action: Action.UPDATE,
-          description: 'Registro actualizado',
-          model,
-          register_id: register.id,
-          field: key,
-          preview_content: register[key],
-          new_content: key !== 'password' ? dto[key] : null,
-        },
-        req,
-      );
+    const asText = (value: unknown) =>
+      value == null ? null : typeof value === 'object' ? JSON.stringify(value) : String(value);
+    const data = Object.entries(dto).map(([field, value]) => ({
+      action: Action.UPDATE,
+      description: 'Registro actualizado',
+      model,
+      register_id: register.id,
+      field,
+      preview_content: field === 'password' ? null : asText(register[field]),
+      new_content: field === 'password' ? null : asText(value),
+      ip: req.user.ip,
+      status: Status.SUCCESS,
+      user_id: req.user.user_id ?? null,
+      created_at: timezoneHelper(),
+    }));
+    if (data.length) await db.audit.createMany({ data });
   }
 
   async auditDelete(
