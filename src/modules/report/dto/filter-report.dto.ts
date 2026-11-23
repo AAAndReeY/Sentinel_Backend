@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { Process, Shift } from '@prisma/client';
 import { SearchDto } from '../../../common/dto';
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
@@ -11,9 +12,10 @@ export class FilterReportDto extends SearchDto {
   @IsOptional()
   lack?: string;
 
+  @Transform(({ value }) => value === 'null' ? null : value)
   @IsEnum(Process)
   @IsOptional()
-  process?: Process;
+  process?: Process | null;
 
   @IsUUID()
   @IsOptional()
